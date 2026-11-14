@@ -7,6 +7,8 @@ session is waiting on you, cheering when the turn ends.
 She is drawn as inline SVG and driven by CSS keyframes. There is no image file,
 no canvas, no animation library, and no per-frame JavaScript.
 
+<img width="490" height="366" alt="dsh-chan-demo" src="https://github.com/user-attachments/assets/4ea5331d-4140-4a26-ab20-7f27bee06960" />
+
 | State | Trigger | What you see |
 |---|---|---|
 | `sleep` | nothing running | eyes closed, slow breathing, drifting "Zzz", slow tail |
