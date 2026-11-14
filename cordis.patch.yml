@@ -1,0 +1,4 @@
+- insert:
+    - id: deepseek-chan
+      name: '@local/deepseek-chan'
+      config: {}
