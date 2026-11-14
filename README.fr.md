@@ -1,10 +1,9 @@
 # DeepSeek Chan
 
-DeepSeek Chan, la chibi baleine-maid, remplace Bonk sous le compositeur. Elle
-reprend l'architecture du plugin `bonk` (un SVG, une feuille CSS pilotée par
-`data-phase`, l'état du tour lu dans le slot) et ajoute deux choses que Bonk ne
-savait pas faire : un état d'attente quand la session attend une réponse de ta
-part, et une réaction au clic.
+DeepSeek Chan, la chibi baleine-maid, vit sous le compositeur. Le personnage est
+un SVG, sa feuille CSS est pilotée par `data-phase`, et l'état du tour lui vient
+du slot. Deux choses qu'un simple personnage ne fait pas : un état d'attente
+quand la session attend une réponse de ta part, et une réaction au clic.
 
 | État | Déclencheur | Ce qu'on voit |
 |---|---|---|
@@ -27,15 +26,30 @@ part, et une réaction au clic.
   ressemblent pas. `navy` est volontairement doublée dans `OUTFITS` pour rester
   majoritaire : la baleine doit rester bleue la plupart du temps.
 - **Clic** : petit saut, yeux rieurs (aucune fenêtre, aucun réseau).
-- **Carillon de fin de tour** : deux notes, **coupé par défaut**. Clic droit sur
-  elle pour l'activer (état retenu dans `localStorage`, clé
-  `deepseek-chan.sound`), et le premier clic sert aussi à débloquer l'audio du
-  navigateur. Le niveau est une seule constante, `CHIME_DB` (`-16`). Le son
-  n'est **pas** déclenché par la vignette du dock mais par un veilleur monté
-  dans `shell.overlay` : il suit le nombre de sessions occupées et sonne quand
-  il baisse, donc aussi pour une session en arrière-plan — celle dont la
-  pastille verte s'allume. Deux fins rapprochées sont fusionnées (garde de
-  1,2 s).
+
+## Système de notification intégré
+
+La fin d'un tour est annoncée, sans avoir à surveiller la fenêtre :
+
+- Un veilleur monté dans `shell.overlay` s'abonne au même instantané
+  `useSessionStatus` et suit le **nombre de sessions occupées**, pas une session
+  en particulier. Quand ce nombre baisse, un tour vient de finir — n'importe
+  lequel, y compris celui d'une session en arrière-plan dont la pastille verte
+  s'allume dans la barre latérale. Le composant ne rend rien du tout.
+- Le signal est deux notes de sinus douces (sol 5 à 784 Hz, puis do 6 à
+  1046,5 Hz, à 100 ms d'écart, attaque de 20 ms, décroissance de 320 ms) à
+  niveau fixe. Tout le réglage tient dans une constante, `CHIME_DB` (−16 dBFS).
+- Un seul carillon toutes les 1,2 s au maximum : deux tours qui se terminent
+  ensemble ne sonnent pas deux fois.
+- **Coupé par défaut.** Pour l'activer, ou pour la couper à nouveau, il suffit
+  d'un clic droit sur elle : un seul geste bascule le son, et c'est le seul
+  réglage. Le choix est retenu dans `localStorage` sous `deepseek-chan.sound`,
+  et une petite pastille confirme le changement. Le premier clic sert aussi à
+  débloquer l'`AudioContext` du navigateur, que les navigateurs gardent suspendu
+  jusqu'à un geste utilisateur.
+- Rien à installer ni à autoriser : le son est synthétisé en WebAudio. Aucune
+  notification système, aucune demande de permission, aucun appel réseau.
+
 
 
 ## D'où vient l'état
@@ -75,10 +89,11 @@ répondent `false` : l'animation retombe sur `sleep` au lieu de casser.
 plugin_manager install_bundle  target = <chemin absolu vers ce dossier>
 ```
 
-`bonk` doit être désactivé pour éviter deux personnages sous le compositeur :
+Si un autre bundle de personnage est déjà monté sous le compositeur, désactive-le
+avant d'installer celui-ci : deux personnages se chevaucheraient.
 
 ```
-plugin_manager set_bundle  target = @local/bonk  enabled = false
+plugin_manager set_bundle  target = <identifiant du bundle>  enabled = false
 ```
 
 ## Réglages
@@ -105,4 +120,3 @@ bundle à `enabled: false` (l'entrée disparaît alors du slot). Vérifier avec
 - Jauge de profondeur qui se remplit avec la durée du tour.
 - Cadence de la queue liée au flux de tokens plutôt qu'au booléen « ça tourne ».
 - Variantes de robe par workspace ou par preset d'agent.
-- Son discret à la fin du tour (désactivé par défaut).
