@@ -5,6 +5,9 @@ un SVG, sa feuille CSS est pilotée par `data-phase`, et l'état du tour lui vie
 du slot. Deux choses qu'un simple personnage ne fait pas : un état d'attente
 quand la session attend une réponse de ta part, et une réaction au clic.
 
+<img width="490" height="366" alt="dsh-chan-demo" src="https://github.com/user-attachments/assets/87ba08b4-23b0-466e-8c8c-c9d070ca572c" />
+
+
 | État | Déclencheur | Ce qu'on voit |
 |---|---|---|
 | `sleep` | rien ne tourne | yeux fermés, respiration lente, « Zzz » qui montent, queue lente |
