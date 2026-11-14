@@ -1,120 +1,123 @@
 # DeepSeek Chan
 
-A chibi whale-maid who lives under the composer. Her mood follows the session
-turn: asleep when nothing runs, awake while the model works, attentive when the
-session is waiting on you, cheering when the turn ends.
+DeepSeek Chan, la chibi baleine-maid, remplace Bonk sous le compositeur. Elle
+reprend l'architecture du plugin `bonk` (un SVG, une feuille CSS pilotée par
+`data-phase`, l'état du tour lu dans le slot) et ajoute deux choses que Bonk ne
+savait pas faire : un état d'attente quand la session attend une réponse de ta
+part, et une réaction au clic.
 
-She is drawn as inline SVG and driven by CSS keyframes. There is no image file,
-no canvas, no animation library, and no per-frame JavaScript.
-
-| State | Trigger | What you see |
+| État | Déclencheur | Ce qu'on voit |
 |---|---|---|
-| `sleep` | nothing running | eyes closed, slow breathing, drifting "Zzz", slow tail |
-| `wake` | a turn starts | a small hop, eyes open (0.62 s) |
-| `work` | the turn runs | floating, hair and tail swaying, bubbles and notes rising |
-| `wait` | the turn needs something from you | raised hand, a "?" bubble rocking |
-| `cheer` | the turn just ended | singing, hands clapping, sparks (2.9 s) |
-| `pet` | you click her | happy hop, laughing eyes, a whale line |
+| `sleep` | rien ne tourne | yeux fermés, respiration lente, « Zzz » qui montent, queue lente |
+| `wake` | un tour démarre | petit saut, les yeux s'ouvrent (0,62 s) |
+| `work` | le tour tourne | elle flotte, cheveux et queue balancent, bulles et notes qui montent |
+| `wait` | le tour attend quelque chose de toi | main levée, bulle « ? » qui oscille |
+| `cheer` | le tour vient de finir | elle chante, les mains claquent, étincelles (2,9 s) |
+| `pet` | tu cliques sur elle | saut de joie, yeux rieurs, une phrase de baleine |
 
-`wake` chains into `work` or `wait`; `cheer` settles back to `sleep`.
+`wake` enchaîne sur `work` ou `wait` ; `cheer` retombe sur `sleep`.
 
-## Beyond the character
+## Ce qu'elle fait en plus du personnage
 
-- **Depth gauge** (left of her, during `work` and `wait`): one metre every two
-  seconds, capped at 999 m, with a bar that fills on a 90 m base. It gives a
-  sense of how long the turn has been running.
-- **Per-session outfit**: four palettes (`navy`, `abyss`, `ice`, `sakura`)
-  chosen by a stable hash of the Session id, so two open tabs never look the
-  same. `navy` is deliberately duplicated in `OUTFITS` to stay the majority
-  case: the whale should be blue most of the time.
-- **Click**: a small hop and laughing eyes. No window, no network.
-- **End-of-turn chime**: two notes, **off by default**. Right-click her to
-  enable it (stored in `localStorage` under `deepseek-chan.sound`; the first
-  click also unlocks browser audio). The level is a single constant,
-  `CHIME_DB` (`-16`). The sound is not driven by the dock tile but by a watcher
-  mounted in `shell.overlay`: it follows the number of busy sessions and rings
-  when that number drops, so a turn finishing in a background session rings
-  too. Two endings within 1.2 s are merged.
+- **Jauge de profondeur** (à sa gauche, pendant `work` et `wait`) : un mètre
+  toutes les deux secondes, plafonnée à 999 m, avec une barre qui se remplit
+  sur la base de 90 m. Elle donne une idée du temps que le tour prend.
+- **Tenue par session** : quatre palettes (navy, abyss, ice, sakura) choisies
+  par un hachage stable de l'identifiant de session. Deux onglets ouverts ne se
+  ressemblent pas. `navy` est volontairement doublée dans `OUTFITS` pour rester
+  majoritaire : la baleine doit rester bleue la plupart du temps.
+- **Clic** : petit saut, yeux rieurs (aucune fenêtre, aucun réseau).
 
-## Where the state comes from
+## Système de notification intégré
 
-The entry renders in `conversation.composer.dock`, a `session`-scoped slot. The
-slot provides the standard `useSessionStatus` prop, whose snapshot is a
-`Map<SessionId, { running, pendingInteraction, completionUnread }>` (the
-`UiSession` service of `@deepseek-ai/dsh-client-ui-session`). The component
-selects only two booleans — `running` and `pendingInteraction` — so it
-re-renders when one of the two changes, never on every token.
+La fin d'un tour est annoncée, sans avoir à surveiller la fenêtre :
 
-When data is missing (unresolved session, empty snapshot), the selectors answer
-`false`: the animation falls back to `sleep` instead of breaking the dock.
+- Un veilleur monté dans `shell.overlay` s'abonne au même instantané
+  `useSessionStatus` et suit le **nombre de sessions occupées**, pas une session
+  en particulier. Quand ce nombre baisse, un tour vient de finir — n'importe
+  lequel, y compris celui d'une session en arrière-plan dont la pastille verte
+  s'allume dans la barre latérale. Le composant ne rend rien du tout.
+- Le signal est deux notes de sinus douces (sol 5 à 784 Hz, puis do 6 à
+  1046,5 Hz, à 100 ms d'écart, attaque de 20 ms, décroissance de 320 ms) à
+  niveau fixe. Tout le réglage tient dans une constante, `CHIME_DB` (−16 dBFS).
+- Un seul carillon toutes les 1,2 s au maximum : deux tours qui se terminent
+  ensemble ne sonnent pas deux fois.
+- **Coupé par défaut.** Pour l'activer, ou pour la couper à nouveau, il suffit
+  d'un clic droit sur elle : un seul geste bascule le son, et c'est le seul
+  réglage. Le choix est retenu dans `localStorage` sous `deepseek-chan.sound`,
+  et une petite pastille confirme le changement. Le premier clic sert aussi à
+  débloquer l'`AudioContext` du navigateur, que les navigateurs gardent suspendu
+  jusqu'à un geste utilisateur.
+- Rien à installer ni à autoriser : le son est synthétisé en WebAudio. Aucune
+  notification système, aucune demande de permission, aucun appel réseau.
 
-## Implementation notes
 
-- `client.js` is one SVG (viewBox 120×120, rendered at 96 px) plus a stylesheet
-  driven by `data-phase` and `data-pet` on the container. Every animated
-  `transform` is a `translate`, so nothing depends on `transform-origin` inside
-  the view box.
-- All expressions are pre-drawn; the phase picks the visible set (eyes open /
-  closed / laughing, mouth calm / singing).
-- The raised hand of `wait` is a second pre-drawn arm shown in place of the
-  resting one, so no shoulder rotation has to be recomputed.
-- Three `setTimeout` calls (end of `wake`, of `cheer`, of `pet`) are cleared on
-  teardown; everything else is CSS.
-- `prefers-reduced-motion: reduce` freezes every loop and keeps the current
-  pose.
-- Pet phrases go through `ctx.locale` (`locale.deepseek-chan`), so they follow
-  the active language without a reload.
-- The Host half (`index.js`) is empty: the bundle exists so the patch can insert
-  the row and the Client is loaded.
 
-## Install
+## D'où vient l'état
 
-Install the folder as a bundle, by absolute path:
+L'entrée est rendue dans `conversation.composer.dock`, un slot de portée
+`session`. Le slot fournit la prop standard `useSessionStatus`, dont
+l'instantané est une `Map<SessionId, { running, pendingInteraction,
+completionUnread }>` (service `UiSession` de `@deepseek-ai/dsh-client-ui-session`).
+Le composant ne sélectionne que deux booléens — `running` et
+`pendingInteraction` — donc il ne se re-rend que lorsque l'un des deux change,
+jamais à chaque token.
 
-```text
-plugin_manager install_bundle  target = <absolute path to this folder>
+En cas de donnée absente (session non résolue, instantané vide), les sélecteurs
+répondent `false` : l'animation retombe sur `sleep` au lieu de casser.
+
+## Détails d'implémentation
+
+- `client.js` : un SVG (viewBox 120×120, rendu 96 px) + une feuille CSS pilotée
+  par `data-phase` et `data-pet` sur le conteneur. Chaque `transform` animé est
+  un `translate` : rien ne dépend de `transform-origin` dans la view box.
+- Les expressions sont toutes dessinées ; c'est la phase qui choisit le jeu
+  visible (`yeux ouverts / fermés / rieurs`, `bouche calme / chant`).
+- La main levée de l'état `wait` est un second bras pré-dessiné, affiché à la
+  place du bras au repos : pas de rotation autour d'une épaule à recalculer.
+- Trois `setTimeout` (fin de `wake`, fin de `cheer`, fin de `pet`), nettoyés au
+  démontage ; tout le reste est du CSS.
+- `prefers-reduced-motion: reduce` fige toutes les boucles et garde la pose de
+  l'état courant.
+- Les phrases de caresse passent par `ctx.locale` (`locale.deepseek-chan`), donc
+  elles suivent la langue active sans rechargement.
+- La moitié Host (`index.js`) est vide : le bundle existe pour que le patch
+  puisse insérer la ligne et que le Client soit chargé.
+
+## Installation
+
+```
+plugin_manager install_bundle  target = <chemin absolu vers ce dossier>
 ```
 
-`bonk` must be disabled, otherwise two characters sit under the composer:
+`bonk` doit être désactivé pour éviter deux personnages sous le compositeur :
 
-```text
+```
 plugin_manager set_bundle  target = @local/bonk  enabled = false
 ```
 
-## Settings
+## Réglages
 
-- **Position**: `order` in `client.js` (`0` = activity, `1` = usage,
+- **Position** : `order` dans `client.js` (`0` = activity, `1` = usage,
   `5` = DeepSeek Chan).
-- **Size**: the SVG `width` / `height` (96).
-- **State durations**: `WAKE_MS`, `CHEER_MS`, `PET_MS`, `CHIP_MS` at the top of
-  the component; keep the `cheer` duration consistent with the CSS loop.
-- **Palette**: the `chan-hair`, `chan-dress`, `chan-fin`, `chan-fluke`,
-  `chan-eye` gradients in the `<defs>`.
-- **Phrases**: the `EN` / `FR` dictionaries in `client.js`.
-- **Disable**: `plugin_manager set_bundle` on the bundle.
+- **Taille** : `width` / `height` du SVG (96).
+- **Durées d'état** : `WAKE_MS`, `CHEER_MS`, `PET_MS`, `CHIP_MS` en haut du
+  composant ; garder la durée de `cheer` cohérente avec la boucle CSS.
+- **Palette** : les dégradés `chan-hair`, `chan-dress`, `chan-fin`,
+  `chan-fluke`, `chan-eye` dans les `<defs>`.
+- **Phrases** : les dictionnaires `EN` / `FR` du `client.js`.
+- **Désactiver** : `plugin_manager set_bundle` sur `@local/deepseek-chan`.
 
-## Known pitfall
+## Piège rencontré
 
-A `client.js` write that fails at load time can flip the bundle to
-`enabled: false` (the entry then disappears from the slot). Check with
-`plugin_manager list_bundles`, then re-enable with `plugin_manager set_bundle`.
+Une écriture du `client.js` qui échoue au chargement peut faire passer le
+bundle à `enabled: false` (l'entrée disparaît alors du slot). Vérifier avec
+`plugin_manager list_bundles`, puis réactiver avec
+`plugin_manager set_bundle target=@local/deepseek-chan enabled=true`.
 
-## Compatibility
+## Pistes non implémentées
 
-Tested against DSH `0.2.2-rc.3`, web client, desktop profile. The bundle is
-client-only: it reads no session content, adds no tool, and makes no network
-request.
-
-## Files
-
-| File | Role |
-|---|---|
-| `index.js` | empty Host half; exists so the bundle can be patched in |
-| `client.js` | the SVG character, stylesheet, and slot registrations |
-| `cordis.patch.yml` | the insert row |
-| `locale/*.json` | pet phrases per language |
-| `icon.svg` | plugin icon |
-
-## License
-
-MIT.
+- Jauge de profondeur qui se remplit avec la durée du tour.
+- Cadence de la queue liée au flux de tokens plutôt qu'au booléen « ça tourne ».
+- Variantes de robe par workspace ou par preset d'agent.
+- Son discret à la fin du tour (désactivé par défaut).
